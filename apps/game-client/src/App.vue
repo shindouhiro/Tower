@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import HeaderBar from './components/HeaderBar.vue'
 import BattleArea from './components/BattleArea.vue'
-import UpgradePanel from './components/UpgradePanel.vue'
 import BottomNav from './components/BottomNav.vue'
+import HeaderBar from './components/HeaderBar.vue'
+import UpgradePanel from './components/UpgradePanel.vue'
 </script>
 
 <template>
@@ -28,13 +28,13 @@ import BottomNav from './components/BottomNav.vue'
 
 .battle {
   flex: 1;
-  min-height: 0; /* Important for flex children */
+  min-height: 0;
 }
 
 .upgrades {
   flex-shrink: 0;
-  height: 40%;
-  max-height: 400px;
+  height: 36%;
+  max-height: 360px;
 }
 
 .nav {
