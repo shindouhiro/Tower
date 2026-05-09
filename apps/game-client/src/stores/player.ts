@@ -1,14 +1,19 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import { calculateCost, calculateStat } from '@tower/core'
+import { computed, ref } from 'vue'
+import { calculateCost, calculateLevelUpExp, calculateStat } from '@tower/core'
 
 export const usePlayerStore = defineStore('player', () => {
   // Currencies
-  const gold = ref(347.25e12) // roughly 347.25A if A is 1e12
+  const gold = ref(100)
   const gems = ref(100)
 
+  // Player Level & Experience
+  const playerLevel = ref(1)
+  const exp = ref(0)
+  const levelUpThreshold = computed(() => calculateLevelUpExp(playerLevel.value))
+
   // Stats levels
-  const attackLevel = ref(64)
+  const attackLevel = ref(1)
   const healthLevel = ref(1)
   const regenLevel = ref(1)
 
@@ -57,9 +62,21 @@ export const usePlayerStore = defineStore('player', () => {
     gold.value += amount
   }
 
+  function addExp(amount: number) {
+    exp.value += amount
+    // Auto level-up loop
+    while (exp.value >= levelUpThreshold.value) {
+      exp.value -= levelUpThreshold.value
+      playerLevel.value++
+    }
+  }
+
   return {
     gold,
     gems,
+    playerLevel,
+    exp,
+    levelUpThreshold,
     attackLevel,
     healthLevel,
     regenLevel,
@@ -74,5 +91,6 @@ export const usePlayerStore = defineStore('player', () => {
     upgradeHealth,
     upgradeRegen,
     addGold,
+    addExp,
   }
 })

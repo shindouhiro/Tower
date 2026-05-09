@@ -7,10 +7,12 @@ const battle = useBattleStore()
 
 let autoBattleTimer: number | null = null
 let impactTimer: number | null = null
+let enemyImpactTimer: number | null = null
 const hasImpact = shallowRef(false)
+const hasEnemyImpact = shallowRef(false)
 
 const enemyHpPercent = computed(() => Math.max(0, (battle.enemyHp / battle.enemyMaxHp) * 100))
-const latestDamageId = computed(() => battle.damageEvents[battle.damageEvents.length - 1]?.id ?? -1)
+const heroHpPercent = computed(() => Math.max(0, (battle.heroHp / battle.heroMaxHp) * 100))
 
 onMounted(() => {
   autoBattleTimer = window.setInterval(() => {
@@ -25,26 +27,49 @@ onUnmounted(() => {
     clearInterval(autoBattleTimer)
   if (impactTimer)
     clearTimeout(impactTimer)
+  if (enemyImpactTimer)
+    clearTimeout(enemyImpactTimer)
+  battle.stopBattleTimers()
 })
+
+function playImpact() {
+  hasImpact.value = true
+  if (impactTimer)
+    clearTimeout(impactTimer)
+  impactTimer = window.setTimeout(() => {
+    hasImpact.value = false
+  }, 760)
+}
+
+function playEnemyImpact() {
+  hasEnemyImpact.value = true
+  if (enemyImpactTimer)
+    clearTimeout(enemyImpactTimer)
+  enemyImpactTimer = window.setTimeout(() => {
+    hasEnemyImpact.value = false
+  }, 600)
+}
 
 function handleChallengeClick() {
   if (battle.state === 'Battling') {
+    playImpact()
     battle.attackEnemy()
   }
 }
 
 watch(
-  latestDamageId,
-  (damageId, previousDamageId) => {
-    if (damageId < 0 || damageId === previousDamageId)
-      return
+  () => battle.attackSequence,
+  (seq, prev) => {
+    if (seq <= 0 || seq === prev) return
+    playImpact()
+  },
+)
 
-    hasImpact.value = true
-    if (impactTimer)
-      clearTimeout(impactTimer)
-    impactTimer = window.setTimeout(() => {
-      hasImpact.value = false
-    }, 320)
+watch(
+  () => battle.enemyAttackSequence,
+  (seq, prev) => {
+    if (seq <= 0 || seq === prev) return
+    playEnemyImpact()
   },
 )
 </script>
@@ -52,19 +77,23 @@ watch(
 <template>
   <section
     class="battle-area"
-    :class="{ 'is-walking': battle.state === 'Walking', 'has-impact': hasImpact }"
+    :class="{ 'is-walking': battle.state === 'Walking', 'has-impact': hasImpact, 'has-enemy-impact': hasEnemyImpact, 'is-dead': battle.state === 'Dead' }"
     aria-label="战斗区域"
   >
     <div class="background-layer" />
-    <div class="atmosphere-layer" />
+    <div class="atmosphere-layer" :style="{ background: battle.currentMonster.atmosphereColor }" />
     <div class="dust-layer" />
 
-    <button id="battle-challenge-target" type="button" class="boss-icon" @click="handleChallengeClick">
+    <button id="battle-challenge-target" type="button" class="boss-icon" :class="{ 'is-boss': battle.isBoss }" @click="handleChallengeClick">
       <div class="enemy-icon-sprite">
-        <img src="/assets/enemy-cutout.webp" alt="敌人头像">
+        <img :src="battle.currentMonster.image" :alt="battle.currentMonster.name">
       </div>
+      <div v-if="battle.isBoss" class="boss-badge">BOSS</div>
       <div v-if="battle.state === 'Battling'" class="click-hint">
-        辅助点击
+        {{ battle.isBoss ? battle.currentMonster.bossName : battle.currentMonster.name }}
+      </div>
+      <div v-else-if="battle.state === 'Dead'" class="click-hint dead-hint">
+        💀 战败...
       </div>
       <div v-else class="click-hint">
         寻找怪物中...
@@ -80,7 +109,10 @@ watch(
           <img src="/assets/hero-cutout.webp" alt="英雄">
         </div>
         <div class="hp-bar">
-          <div class="fill" style="width: 100%" />
+          <div class="fill" :style="{ width: `${heroHpPercent}%` }" />
+        </div>
+        <div class="hp-text hero-hp-text">
+          {{ formatNumber(battle.heroHp) }}
         </div>
       </div>
 
@@ -94,7 +126,7 @@ watch(
           <div class="impact-spark" />
           <div class="ground-shadow" />
           <div class="sprite">
-            <img src="/assets/enemy-cutout.webp" alt="敌人">
+            <img :src="battle.currentMonster.image" :alt="battle.currentMonster.name">
           </div>
           <div class="hp-bar">
             <div class="fill" :style="{ width: `${enemyHpPercent}%` }" />
@@ -108,11 +140,19 @@ watch(
         v-for="dmg in battle.damageEvents"
         :key="dmg.id"
         class="floating-text"
+        :class="{ 'enemy-dmg': dmg.type === 'enemy' }"
         :style="{ left: `${dmg.x}%`, top: `${dmg.y}%` }"
       >
         -{{ formatNumber(dmg.damage) }}
       </div>
     </TransitionGroup>
+
+    <Transition name="fade">
+      <div v-if="battle.state === 'Dead'" class="death-overlay">
+        <div class="death-text">💀 战败</div>
+        <div class="death-sub">回退至上一关...</div>
+      </div>
+    </Transition>
 
     <div class="skills-bar">
       <button
@@ -426,23 +466,23 @@ watch(
 }
 
 .has-impact .impact-spark {
-  animation: impactSpark 0.28s ease-out;
+  animation: impactSpark 0.68s ease-out;
 }
 
 .has-impact .enemy .sprite {
-  animation: enemyHit 0.32s ease-out;
+  animation: enemyHit 0.76s ease-out;
 }
 
 .has-impact .player .sprite {
-  animation: heroStrike 0.32s cubic-bezier(0.16, 0.84, 0.24, 1);
+  animation: heroStrike 0.76s cubic-bezier(0.16, 0.84, 0.24, 1);
 }
 
 .has-impact .weapon-slash {
-  animation: weaponSlash 0.32s ease-out;
+  animation: weaponSlash 0.76s ease-out;
 }
 
 .has-impact .attack-arc {
-  animation: attackArc 0.32s ease-out;
+  animation: attackArc 0.76s ease-out;
 }
 
 .walking-anim .sprite {
@@ -634,5 +674,109 @@ watch(
   0% { transform: translateY(0) scale(1); opacity: 1; }
   50% { transform: translateY(-40px) scale(1.5); opacity: 1; }
   100% { transform: translateY(-80px) scale(1); opacity: 0; }
+}
+
+/* Enemy damage floats - red color */
+.floating-text.enemy-dmg {
+  color: #ff6b6b;
+  text-shadow: 0 2px 0 #4a0e0e, 0 0 18px rgba(255, 40, 40, 0.82);
+}
+
+/* Hero HP text under bar */
+.hero-hp-text {
+  font-size: 0.7rem;
+  font-weight: 900;
+  color: #d4ffda;
+  text-shadow: 0 1px 0 #1a3a1e, 0 0 8px rgba(95, 211, 109, 0.5);
+  margin-top: 2px;
+}
+
+/* Enemy impact - hero gets hit */
+.has-enemy-impact .player .sprite {
+  animation: heroHit 0.5s ease-out;
+}
+
+@keyframes heroHit {
+  0% { filter: brightness(1); }
+  30% { filter: brightness(2) saturate(0.5); transform: translateX(-8px); }
+  60% { filter: brightness(1.3); transform: translateX(4px); }
+  100% { filter: brightness(1); transform: translateX(0); }
+}
+
+/* Death state */
+.is-dead .player .sprite {
+  animation: heroDeath 1.2s ease-out forwards;
+}
+
+@keyframes heroDeath {
+  0% { transform: scaleX(-1) rotate(0); opacity: 1; filter: brightness(1); }
+  40% { transform: scaleX(-1) rotate(-15deg); filter: brightness(1.5) saturate(0.3); }
+  100% { transform: scaleX(-1) rotate(-90deg) translateY(20px); opacity: 0.3; filter: brightness(0.5) saturate(0); }
+}
+
+.death-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 5, 3, 0.7);
+  backdrop-filter: blur(2px);
+}
+
+.death-text {
+  font-size: 2.2rem;
+  font-weight: 900;
+  color: #ff4444;
+  text-shadow: 0 3px 0 #2a0808, 0 0 30px rgba(255, 40, 40, 0.6);
+  animation: deathPulse 1s ease-in-out infinite alternate;
+}
+
+.death-sub {
+  font-size: 0.9rem;
+  color: #ffccaa;
+  margin-top: 8px;
+  opacity: 0.8;
+}
+
+@keyframes deathPulse {
+  from { transform: scale(1); }
+  to { transform: scale(1.08); }
+}
+
+/* BOSS badge */
+.boss-badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  background: linear-gradient(135deg, #ff4444, #cc0000);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 900;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 200, 200, 0.6);
+  text-shadow: 0 1px 1px rgba(0,0,0,0.5);
+  animation: bossPulse 1.2s ease-in-out infinite alternate;
+  z-index: 5;
+}
+
+@keyframes bossPulse {
+  from { box-shadow: 0 0 6px rgba(255, 0, 0, 0.5); }
+  to { box-shadow: 0 0 16px rgba(255, 0, 0, 0.9); }
+}
+
+.is-boss .enemy-icon-sprite {
+  border-color: rgba(255, 80, 80, 0.95);
+  box-shadow:
+    inset 0 2px 8px rgba(255, 100, 100, 0.42),
+    inset 0 -10px 18px rgba(120, 10, 10, 0.5),
+    0 10px 22px rgba(200, 0, 0, 0.42);
+}
+
+.dead-hint {
+  color: #ff8888;
 }
 </style>
