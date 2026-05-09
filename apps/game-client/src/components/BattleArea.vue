@@ -346,7 +346,7 @@ watch(
 }
 
 .enemy .sprite img {
-  transform: scaleX(-1);
+  /* 怪物素材默认面朝英雄方向，无需翻转 */
 }
 
 .aura {

@@ -27,7 +27,7 @@ export const useBattleStore = defineStore('battle', () => {
   const heroMaxHp = computed(() => player.health)
   const heroHp = ref(heroMaxHp.value)
 
-  const isAutoBattle = ref(false)
+  const isAutoBattle = ref(true)
 
   const attackSequence = ref(0)
   const enemyAttackSequence = ref(0)
