@@ -4,6 +4,7 @@ import { computed, onMounted, onUnmounted, shallowRef, watch } from 'vue'
 import { useBattleStore } from '../stores/battle'
 
 const battle = useBattleStore()
+const BASE_URL = import.meta.env.BASE_URL
 
 let autoBattleTimer: number | null = null
 let impactTimer: number | null = null
@@ -106,7 +107,7 @@ watch(
         <div class="ground-shadow" />
         <div class="weapon-slash" />
         <div class="sprite">
-          <img src="/assets/hero-cutout.webp" alt="英雄">
+          <img :src="`${BASE_URL}assets/hero-cutout.webp`" alt="英雄">
         </div>
         <div class="hp-bar">
           <div class="fill" :style="{ width: `${heroHpPercent}%` }" />
