@@ -80,7 +80,7 @@ watch(
     :class="{ 'is-walking': battle.state === 'Walking', 'has-impact': hasImpact, 'has-enemy-impact': hasEnemyImpact, 'is-dead': battle.state === 'Dead' }"
     aria-label="战斗区域"
   >
-    <div class="background-layer" />
+    <div class="background-layer" :style="{ backgroundImage: `linear-gradient(180deg, rgba(30, 18, 12, 0.05) 0%, rgba(35, 17, 8, 0.38) 72%, rgba(16, 11, 8, 0.8) 100%), url('${battle.currentMonster.bgImage}')` }" />
     <div class="atmosphere-layer" :style="{ background: battle.currentMonster.atmosphereColor }" />
     <div class="dust-layer" />
 
@@ -186,13 +186,11 @@ watch(
 .background-layer {
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(180deg, rgba(30, 18, 12, 0.05) 0%, rgba(35, 17, 8, 0.38) 72%, rgba(16, 11, 8, 0.8) 100%),
-    url('/assets/background-scene.webp');
   background-size: cover;
   background-position: center 48%;
   transform: scale(1.08);
   z-index: 0;
+  transition: background-image 1s ease-in-out;
 }
 
 .is-walking .background-layer {
