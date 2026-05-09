@@ -1,0 +1,14 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+catalogs:
+  default:
+    vue: "^3.5.13"
+    pinia: "^2.3.0"
+  dev:
+    "@antfu/eslint-config": "^4.1.0"
+    "eslint": "^9.19.0"
+    "typescript": "^5.7.3"
+    "vite": "^6.0.11"
+    "vue-tsc": "^2.2.0"

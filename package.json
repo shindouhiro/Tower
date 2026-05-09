@@ -1,0 +1,16 @@
+{
+  "name": "tower-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -F @tower/game-client dev",
+    "build": "pnpm -F @tower/game-client build",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "catalog:dev",
+    "eslint": "catalog:dev",
+    "typescript": "catalog:dev"
+  }
+}
