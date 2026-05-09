@@ -6,7 +6,6 @@ import { useBattleStore } from '../stores/battle'
 const battle = useBattleStore()
 const BASE_URL = import.meta.env.BASE_URL
 
-let autoBattleTimer: number | null = null
 let impactTimer: number | null = null
 let enemyImpactTimer: number | null = null
 const hasImpact = shallowRef(false)
@@ -15,21 +14,12 @@ const hasEnemyImpact = shallowRef(false)
 const enemyHpPercent = computed(() => Math.max(0, (battle.enemyHp / battle.enemyMaxHp) * 100))
 const heroHpPercent = computed(() => Math.max(0, (battle.heroHp / battle.heroMaxHp) * 100))
 
-onMounted(() => {
-  autoBattleTimer = window.setInterval(() => {
-    if (battle.isAutoBattle && battle.state === 'Battling') {
-      battle.attackEnemy()
-    }
-  }, 1000)
-})
-
 onUnmounted(() => {
-  if (autoBattleTimer)
-    clearInterval(autoBattleTimer)
   if (impactTimer)
     clearTimeout(impactTimer)
   if (enemyImpactTimer)
     clearTimeout(enemyImpactTimer)
+  // 如果需要后台继续战斗，可以不调用 stopBattleTimers，这里保留原样或按需移除
   battle.stopBattleTimers()
 })
 

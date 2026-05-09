@@ -6,6 +6,15 @@ import { usePlayerStore } from './player'
 
 export type BattleState = 'Walking' | 'Battling' | 'Transition' | 'Dead'
 
+interface DamageEvent {
+  id: number
+  damage: number
+  x: number
+  y: number
+  type: 'hero' | 'enemy'
+  life: number
+}
+
 export const useBattleStore = defineStore('battle', () => {
   const player = usePlayerStore()
 
@@ -31,176 +40,194 @@ export const useBattleStore = defineStore('battle', () => {
 
   const attackSequence = ref(0)
   const enemyAttackSequence = ref(0)
-  const damageEvents = ref<{ id: number, damage: number, x: number, y: number, type: 'hero' | 'enemy' }[]>([])
+  const damageEvents = ref<DamageEvent[]>([])
+  
   let eventId = 0
-  let defeatTimer: number | null = null
-  let enemyAttackTimer: number | null = null
-  let regenTimer: number | null = null
+  let loopId: number | null = null
+  let lastTime = 0
 
-  // Keep hero HP in sync when max hp changes (e.g., after upgrading health)
+  // 内部计时器 (基于毫秒)
+  const timers = {
+    heroAttack: 0,
+    enemyAttack: 0,
+    regen: 0,
+    deathWait: 0,
+    defeatWait: 0,
+    transitionWait: 0
+  }
+
+  // Keep hero HP in sync when max hp changes
   watch(heroMaxHp, (newMax, oldMax) => {
     if (oldMax > 0) {
-      // Proportionally scale current HP
       const ratio = heroHp.value / oldMax
       heroHp.value = Math.floor(newMax * ratio)
     }
   })
 
-  function startBattleTimers() {
-    stopBattleTimers()
+  function gameLoop(time: number) {
+    if (lastTime === 0) lastTime = time
+    const deltaTime = Math.min(time - lastTime, 1000 * 60 * 60 * 24) // 限制最大离线模拟时间 (24小时)
+    lastTime = time
 
-    // Enemy attacks every 1.5 seconds
-    enemyAttackTimer = window.setInterval(() => {
-      if (state.value === 'Battling') {
+    if (state.value === 'Battling') {
+      // 1. 生命恢复
+      timers.regen += deltaTime
+      if (timers.regen >= 1000) {
+        const ticks = Math.floor(timers.regen / 1000)
+        if (heroHp.value < heroMaxHp.value) {
+          heroHp.value = Math.min(heroMaxHp.value, heroHp.value + player.regen * ticks)
+        }
+        timers.regen %= 1000
+      }
+
+      // 2. 敌人攻击
+      timers.enemyAttack += deltaTime
+      while (timers.enemyAttack >= 1500 && state.value === 'Battling') {
         enemyAttackHero()
+        timers.enemyAttack -= 1500
       }
-    }, 1500)
 
-    // Hero regenerates HP every second
-    regenTimer = window.setInterval(() => {
-      if (state.value === 'Battling' && heroHp.value < heroMaxHp.value) {
-        heroHp.value = Math.min(heroMaxHp.value, heroHp.value + player.regen)
+      // 3. 自动战斗
+      if (isAutoBattle.value) {
+        timers.heroAttack += deltaTime
+        while (timers.heroAttack >= 1000 && state.value === 'Battling') {
+          attackEnemy()
+          timers.heroAttack -= 1000
+        }
       }
-    }, 1000)
+    } else if (state.value === 'Dead') {
+      timers.deathWait += deltaTime
+      if (timers.deathWait >= 2000) {
+        if (subStage.value > 1) {
+          subStage.value--
+        }
+        heroHp.value = heroMaxHp.value
+        enemyHp.value = enemyMaxHp.value
+        state.value = 'Walking'
+        timers.deathWait = 0
+      }
+    } else if (state.value === 'Walking') {
+      timers.transitionWait += deltaTime
+      if (timers.transitionWait >= 1500) {
+        if (enemyHp.value <= 0) {
+          // 是在打败敌人后走路
+          progressStage()
+        } else {
+          // 是在死亡复活后走路
+          state.value = 'Battling'
+        }
+        timers.transitionWait = 0
+      }
+    }
+
+    // 更新伤害飘字的生命周期
+    if (damageEvents.value.length > 0) {
+      let needsFilter = false
+      for (let i = 0; i < damageEvents.value.length; i++) {
+        damageEvents.value[i].life += deltaTime
+        if (damageEvents.value[i].life > 850) {
+          needsFilter = true
+        }
+      }
+      if (needsFilter) {
+        damageEvents.value = damageEvents.value.filter(e => e.life <= 850)
+      }
+    }
+
+    loopId = requestAnimationFrame(gameLoop)
+  }
+
+  function startBattleTimers() {
+    if (loopId === null) {
+      lastTime = 0
+      loopId = requestAnimationFrame(gameLoop)
+    }
   }
 
   function stopBattleTimers() {
-    if (enemyAttackTimer) {
-      clearInterval(enemyAttackTimer)
-      enemyAttackTimer = null
-    }
-    if (regenTimer) {
-      clearInterval(regenTimer)
-      regenTimer = null
+    if (loopId !== null) {
+      cancelAnimationFrame(loopId)
+      loopId = null
     }
   }
 
   function attackEnemy() {
-    if (state.value !== 'Battling')
-      return
-    if (enemyHp.value <= 0)
-      return
+    if (state.value !== 'Battling' || enemyHp.value <= 0) return
 
     const damage = player.attack
     enemyHp.value -= damage
     attackSequence.value++
 
-    const id = eventId++
     damageEvents.value.push({
-      id,
+      id: eventId++,
       damage,
       x: 55 + (Math.random() * 20 - 10),
       y: 40 + (Math.random() * 20 - 10),
       type: 'hero',
+      life: 0
     })
 
-    if (damageEvents.value.length > 6) {
+    if (damageEvents.value.length > 8) {
       damageEvents.value.shift()
     }
 
-    window.setTimeout(() => {
-      damageEvents.value = damageEvents.value.filter(event => event.id !== id)
-    }, 850)
-
-    if (enemyHp.value <= 0 && !defeatTimer) {
+    if (enemyHp.value <= 0) {
       enemyHp.value = 0
-      defeatTimer = window.setTimeout(() => {
-        defeatEnemy()
-      }, 880)
+      defeatEnemy()
     }
   }
 
   function enemyAttackHero() {
-    if (state.value !== 'Battling')
-      return
-    if (heroHp.value <= 0)
-      return
+    if (state.value !== 'Battling' || heroHp.value <= 0) return
 
     const damage = enemyAttack.value
     heroHp.value -= damage
     enemyAttackSequence.value++
 
-    const id = eventId++
     damageEvents.value.push({
-      id,
+      id: eventId++,
       damage,
       x: 25 + (Math.random() * 16 - 8),
       y: 45 + (Math.random() * 16 - 8),
       type: 'enemy',
+      life: 0
     })
 
-    if (damageEvents.value.length > 6) {
+    if (damageEvents.value.length > 8) {
       damageEvents.value.shift()
     }
 
-    window.setTimeout(() => {
-      damageEvents.value = damageEvents.value.filter(event => event.id !== id)
-    }, 850)
-
     if (heroHp.value <= 0) {
       heroHp.value = 0
-      heroDeath()
+      state.value = 'Dead'
+      timers.deathWait = 0
     }
-  }
-
-  function heroDeath() {
-    state.value = 'Dead'
-    stopBattleTimers()
-
-    // Death penalty: go back 1 subStage (min 1)
-    window.setTimeout(() => {
-      if (subStage.value > 1) {
-        subStage.value--
-      }
-
-      // Reset HP and restart
-      heroHp.value = heroMaxHp.value
-      enemyHp.value = enemyMaxHp.value
-      state.value = 'Walking'
-
-      window.setTimeout(() => {
-        state.value = 'Battling'
-        startBattleTimers()
-      }, 1500)
-    }, 2000)
   }
 
   function defeatEnemy() {
     const boss = isBoss.value
-    const goldReward = calculateGoldReward(stage.value, subStage.value, boss)
-    const expReward = calculateExpReward(stage.value, subStage.value, boss)
-
-    player.addGold(goldReward)
-    player.addExp(expReward)
+    player.addGold(calculateGoldReward(stage.value, subStage.value, boss))
+    player.addExp(calculateExpReward(stage.value, subStage.value, boss))
 
     state.value = 'Walking'
-    stopBattleTimers()
-
-    window.setTimeout(() => {
-      progressStage()
-    }, 2000)
+    timers.transitionWait = 0
   }
 
   function progressStage() {
-    defeatTimer = null
     subStage.value++
     if (subStage.value > 10) {
       subStage.value = 1
       stage.value++
     }
-
     enemyHp.value = enemyMaxHp.value
-    // Don't fully reset hero HP - carry over, but ensure at least 30%
     heroHp.value = Math.max(heroHp.value, Math.floor(heroMaxHp.value * 0.3))
     state.value = 'Battling'
-    startBattleTimers()
   }
 
   function toggleAutoBattle() {
     isAutoBattle.value = !isAutoBattle.value
   }
 
-  // Initialize battle timers
   startBattleTimers()
 
   return {
