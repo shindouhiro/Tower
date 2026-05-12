@@ -1,6 +1,7 @@
 {
   "name": "tower-monorepo",
   "version": "1.0.0",
+  "homepage": "https://shindouhiro.github.io/Tower/",
   "private": true,
   "scripts": {
     "dev": "pnpm -F @tower/game-client dev",

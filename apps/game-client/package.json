@@ -1,9 +1,9 @@
 {
   "name": "@tower/game-client",
-  "private": true,
-  "version": "0.0.0",
-  "homepage": "https://shindouhiro.github.io/Tower/",
   "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "homepage": "https://shindouhiro.github.io/Tower/",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
