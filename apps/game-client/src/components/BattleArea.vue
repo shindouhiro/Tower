@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formatNumber } from '@tower/core'
-import { computed, onMounted, onUnmounted, shallowRef, watch } from 'vue'
+import { computed, onUnmounted, shallowRef, watch } from 'vue'
 import { useBattleStore } from '../stores/battle'
 
 const battle = useBattleStore()

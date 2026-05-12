@@ -2,6 +2,7 @@
   "name": "@tower/game-client",
   "private": true,
   "version": "0.0.0",
+  "homepage": "https://shindouhiro.github.io/Tower/",
   "type": "module",
   "scripts": {
     "dev": "vite",
